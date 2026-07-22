@@ -1,0 +1,18 @@
+; Engine configuration file.
+; It's best edited using the editor and not directly.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="Automate Godot"
+config/features=PackedStringArray("4.4")
+config/icon="res://addons/automate_godot/icon.svg"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/automate_godot/plugin.cfg")
