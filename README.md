@@ -33,6 +33,51 @@ The first pass mirrors the `automate-fvtt` approach: keep third-party integratio
 
 There does not appear to be a mature, Godot-asset-library-ready crafting addon with the exact `automate-fvtt` scope today. This scaffold therefore establishes integration seams first so we can adopt upstream pieces selectively without coupling the addon core to any single external project.
 
+## Tick dispatcher and rule engine
+
+The automation core lives in `time/` and `rules/`, ported from automate-fvtt's
+rules engine:
+
+- **`AutomateTickDispatcher`** is the one integration point between game time
+  and rules. It fans elapsed intervals out to subscribers one interval at a
+  time, so a large jump (a year in one step) resolves identically to the same
+  number of single-interval advances. The interval unit is the host game's
+  choice.
+- **`AutomateRule`** is an editor-authorable resource (plain dictionaries with
+  the same fields also work): a producer / converter / consumer / upkeep kind
+  with per-unit `inputs` and `outputs`.
+- **`AutomateRuleEngine.resolve_interval(rules, counts, stockpile)`** is pure
+  and static. Producers and converters create resources before consumers and
+  upkeep spend them, so a tick can feed downstream rules from upstream output.
+  Converters stop at affordable whole conversions. Shortfalls clamp at zero
+  and are reported in a `deficits` dictionary — the pressure signal for
+  survival-style consumers.
+
+```gdscript
+var dispatcher: AutomateTickDispatcher = AutomateGodot.create_tick_dispatcher()
+var stockpile := {"food": 10.0, "ore": 7.0}
+var rules := [
+    {"rule_id": "garden", "kind": "producer", "inputs": {}, "outputs": {"food": 2.0}},
+    {"rule_id": "smelter", "kind": "converter", "inputs": {"ore": 2.0}, "outputs": {"ingot": 1.0}},
+    {"rule_id": "henchman", "kind": "consumer", "inputs": {"food": 1.0}, "outputs": {}},
+]
+
+dispatcher.subscribe("economy", func(_interval: int) -> void:
+    var plan := AutomateGodot.resolve_interval(rules, {"garden": 1, "smelter": 1, "henchman": 3}, stockpile)
+    stockpile = plan["stockpile"]
+    # plan["deficits"] lists unmet consumption for host-game pressure systems.
+)
+
+dispatcher.advance(1)      # one day
+dispatcher.advance(30)     # a month — same result as thirty single days
+```
+
+Validate headless with:
+
+```text
+GODOT_BIN=/path/to/godot ./scripts/test-headless-smoke.sh
+```
+
 ## Initial user-story direction
 
 The first implementation passes should stay aligned with the `automate-fvtt` direction:
@@ -60,5 +105,16 @@ addons/automate_godot/
   integrations/
     calendar_adapter.gd
     crafting_adapter.gd
+  rules/
+    rule.gd
+    rule_engine.gd
+  time/
+    tick_dispatcher.gd
+openspec/
+  changes/
 project.godot
+scripts/
+  test-headless-smoke.sh
+tests/
+  automate_smoke.gd
 ```
